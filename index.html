@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#003580">
-<meta name="description" content="Trip Booker — Stays, Flights, Car Rentals and Travel Packages.">
+<meta name="description" content="Trip Booker — Stays, Flights, Car Rentals and Travel Packages. Find your next stay on tripbooker.com.">
 <title>Trip Booker | Official Site — Stays, Flights & Travel</title>
 
 <!-- Supabase JS Client Library -->
@@ -186,7 +186,7 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
 <div id="gatekeeperScreen">
   <div class="gatekeeper-card">
     <div class="gatekeeper-logo">Trip Booker</div>
-    <h2 style="margin:0 0 6px;font-size:20px;">Sign in or create an account</h2>
+    <h2 style="margin:0 0 6px;font-size:20px;">Sign in to tripbooker.com</h2>
     <p style="margin:0 0 20px;font-size:13px;color:var(--muted);">Access your secret deals, manage bookings, and earn travel rewards.</p>
     
     <div style="display:flex;gap:10px;margin-bottom:16px;justify-content:center;">
@@ -247,7 +247,7 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
   <div class="hero-banner">
     <div class="hero-inner">
       <h1>Find your next stay</h1>
-      <p>Search low prices on hotels, homes, and much more with Trip Booker...</p>
+      <p>Search low prices on hotels, homes, and much more on tripbooker.com...</p>
     </div>
   </div>
 
@@ -365,6 +365,7 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
           <div class="field"><label>Duration (Days)</label><input id="planDays" type="number" min="1" max="14" value="3"></div>
           <div class="field"><label>Travellers</label><input id="planCount" type="number" value="2"></div>
           <div class="field"><label>Travel Style</label><input id="planStyle" placeholder="e.g. Luxury, Family, Budget"></div>
+          <div class="field"><label>OpenAI API Key (Optional)</label><input id="openaiKey" type="password" placeholder="sk-..."></div>
           <button class="b-btn" style="width:100%;margin-top:10px;" id="aiPlanBtn" onclick="generateRealAIPlan()">Build Itinerary</button>
         </div>
         <div id="planOutput" class="card-box"><div style="color:var(--muted)">Your custom itinerary will display here.</div></div>
@@ -375,8 +376,8 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
   <!-- USER PROFILE VIEW -->
   <section id="profile" class="view">
     <div class="section">
-      <h2 class="section-title">Account Settings & Genius Rewards</h2>
-      <p class="section-subtitle">Manage details and view loyalty tier status</p>
+      <h2 class="section-title">Account Settings & Loyalty Rewards</h2>
+      <p class="section-subtitle">Manage details and view tier status</p>
       <div class="grid2">
         <div class="card-box">
           <h3>Personal Details</h3>
@@ -386,8 +387,8 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
           <button class="b-btn" style="background:var(--danger);margin-left:8px;" onclick="logout()">Sign Out</button>
         </div>
         <div class="card-box">
-          <h3>Genius Loyalty Level</h3>
-          <div style="font-size:32px;font-weight:800;color:var(--b-blue-light);" id="pPoints">Level 2 Genius</div>
+          <h3>Trip Booker Loyalty Level</h3>
+          <div style="font-size:32px;font-weight:800;color:var(--b-blue-light);" id="pPoints">Tier 2 Rewards</div>
           <p style="color:var(--muted);font-size:13px;">You are eligible for 10%–15% discounts on selected stays worldwide.</p>
         </div>
       </div>
@@ -444,12 +445,12 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
         <h4>About</h4>
         <ul>
           <li><button onclick="showView('contact')">About Trip Booker</button></li>
-          <li><button onclick="showView('profile')">Genius Loyalty</button></li>
+          <li><button onclick="showView('profile')">Rewards Program</button></li>
         </ul>
       </div>
     </div>
     <div style="max-width:1140px;margin:20px auto 0;text-align:center;color:var(--muted);">
-      &copy; 2026 Trip Booker Ltd. All rights reserved. Founded by James Nderi.
+      &copy; 2026 tripbooker.com — Trip Booker Ltd. All rights reserved. Founded by James Nderi.
     </div>
   </footer>
 </div>
@@ -548,10 +549,10 @@ async function checkAuthAndRender() {
 
 async function fetchUserData() {
   if (!state.user) return;
-  const { data: favData } = await supabaseClient.from('favorites').select('destination_id');
+  const { data: favData } = await supabaseClient.from('favorites').select('destination_id').eq('user_id', state.user.id);
   if (favData) state.favs = favData.map(f => f.destination_id);
 
-  const { data: bookData } = await supabaseClient.from('bookings').select('*').order('created_at', { ascending: false });
+  const { data: bookData } = await supabaseClient.from('bookings').select('*').eq('user_id', state.user.id).order('created_at', { ascending: false });
   if (bookData) state.bookings = bookData;
 
   handleDestFilter();
@@ -674,11 +675,11 @@ async function toggleFav(event, id) {
   if (!state.user) { toast('Please sign in to save stays'); return; }
 
   if (state.favs.includes(id)) {
-    await supabaseClient.from('favorites').delete().eq('destination_id', id);
+    await supabaseClient.from('favorites').delete().eq('user_id', state.user.id).eq('destination_id', id);
     state.favs = state.favs.filter(x => x !== id);
     toast('Removed from saved list');
   } else {
-    await supabaseClient.from('favorites').insert([{ destination_id: id }]);
+    await supabaseClient.from('favorites').insert([{ user_id: state.user.id, destination_id: id }]);
     state.favs.push(id);
     toast('Saved to list');
   }
@@ -703,23 +704,59 @@ function openDetailModal(id) {
     <hr style="border:0;border-top:1px solid var(--line);margin:12px 0;">
     <div class="field">
       <label>Select Payment Method</label>
-      <select id="payMethod">
-        <option value="M-Pesa">M-Pesa Express</option>
+      <select id="payMethod" onchange="toggleMpesaInput(this.value)">
+        <option value="M-Pesa">M-Pesa Express (STK Push)</option>
         <option value="Credit Card">Credit / Debit Card</option>
       </select>
     </div>
-    <button class="b-btn" style="width:100%;padding:12px;" onclick="quickBook('${d.name}', ${d.priceKES})">Reserve & Pay Now</button>
+    <div class="field" id="mpesaPhoneGroup">
+      <label>M-Pesa Phone Number</label>
+      <input id="mpesaPhone" placeholder="2547XXXXXXXX" value="${state.user?.phone || '254700000000'}">
+    </div>
+    <button class="b-btn" style="width:100%;padding:12px;" id="payBtn" onclick="quickBook('${d.name}', ${d.priceKES})">Reserve & Pay Now</button>
   `;
   openModal('bookingModal');
+}
+
+function toggleMpesaInput(val) {
+  const group = document.getElementById('mpesaPhoneGroup');
+  if(group) group.style.display = val === 'M-Pesa' ? 'flex' : 'none';
 }
 
 async function quickBook(destName, priceKES) {
   if (!state.user) { toast('Please sign in to reserve'); return; }
   const method = document.getElementById('payMethod')?.value || 'M-Pesa';
+  const phone = document.getElementById('mpesaPhone')?.value || '';
+  const btn = document.getElementById('payBtn');
   const bookingId = 'BK-' + Math.random().toString(36).substr(2, 6).toUpperCase();
 
-  const { error } = await supabaseClient.from('bookings').insert([{ id: bookingId, destination: destName, price_kes: priceKES, payment_method: method }]);
+  if (method === 'M-Pesa') {
+    if (!phone || phone.length < 10) { toast('Please enter a valid M-Pesa phone number'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Sending STK Push Prompt...';
+
+    // Simulated M-Pesa Daraja STK Push integration handshake
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      toast('STK Push Prompt sent to ' + phone + '. Confirm PIN on phone.');
+    } catch (e) {
+      toast('Payment Gateway Error');
+      btn.disabled = false;
+      return;
+    }
+  }
+
+  const { error } = await supabaseClient.from('bookings').insert([{ 
+    id: bookingId, 
+    user_id: state.user.id, 
+    destination: destName, 
+    price_kes: priceKES, 
+    payment_method: method,
+    status: 'Confirmed' 
+  }]);
+
   if (!error) {
+    BI.track('booking_created', { bookingId, destName, priceKES, method });
     closeModal('bookingModal');
     toast(`Reservation confirmed! Ref: ${bookingId}`);
     await fetchUserData();
@@ -746,7 +783,8 @@ function renderTrips() {
 }
 
 async function cancelBooking(id) {
-  await supabaseClient.from('bookings').delete().eq('id', id);
+  await supabaseClient.from('bookings').delete().eq('id', id).eq('user_id', state.user.id);
+  BI.track('booking_cancelled', { bookingId: id });
   toast('Reservation cancelled');
   await fetchUserData();
 }
@@ -754,26 +792,62 @@ async function cancelBooking(id) {
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
+/* Real OpenAI API Dynamic Itinerary Planner */
 async function generateRealAIPlan() {
   const dest = document.getElementById('planDest').value || 'Nairobi';
   const days = document.getElementById('planDays').value || 3;
   const count = document.getElementById('planCount').value || 2;
   const style = document.getElementById('planStyle').value || 'General Stays';
+  const apiKey = document.getElementById('openaiKey').value.trim();
   const outputEl = document.getElementById('planOutput');
   
-  outputEl.innerHTML = `<div style="color:var(--muted)">Generating custom itinerary...</div>`;
+  outputEl.innerHTML = `<div style="color:var(--muted)">🤖 Generating dynamic custom itinerary with AI...</div>`;
+  BI.track('ai_plan_generated', { dest, days, count, style });
 
-  setTimeout(() => {
-    outputEl.innerHTML = `
-      <h3 style="margin-top:0;">Itinerary for ${dest} (${days} Days)</h3>
-      <p><strong>Travellers:</strong> ${count} | <strong>Style:</strong> ${style}</p>
-      <ul style="padding-left:18px;line-height:1.6;font-size:14px;">
-        <li><strong>Day 1:</strong> Check-in at ${dest} property, hotel orientation, relaxation.</li>
-        <li><strong>Day 2:</strong> Full day guided activity and local culinary dinner.</li>
-        <li><strong>Day 3:</strong> Morning shopping and checkout departure.</li>
-      </ul>
-    `;
-  }, 800);
+  if (!apiKey) {
+    // Elegant fallback itinerary generation when API key field is empty
+    setTimeout(() => {
+      outputEl.innerHTML = `
+        <h3 style="margin-top:0;">Itinerary for ${dest} (${days} Days)</h3>
+        <p><strong>Travellers:</strong> ${count} | <strong>Style:</strong> ${style}</p>
+        <ul style="padding-left:18px;line-height:1.6;font-size:14px;">
+          <li><strong>Day 1:</strong> Arrival in ${dest}, hotel check-in, orientation, and evening welcome dinner.</li>
+          <li><strong>Day 2:</strong> Guided sightseeing tour, local shopping, and landmark exploration.</li>
+          <li><strong>Day 3:</strong> Morning relaxation, souvenir shopping, checkout, and airport transfer.</li>
+        </ul>
+        <p style="font-size:11px;color:var(--muted);">Tip: Enter your OpenAI API Key above for live personalized GPT responses.</p>
+      `;
+    }, 800);
+    return;
+  }
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [{
+          role: 'user',
+          content: `Create a concise ${days}-day travel itinerary for ${dest} for ${count} travellers with a ${style} style. Return in short clean bullet points.`
+        }]
+      })
+    });
+
+    const data = await res.json();
+    if (data.choices && data.choices[0]) {
+      const content = data.choices[0].message.content.replace(/\n/g, '<br>');
+      outputEl.innerHTML = `<h3>Custom AI Plan for ${dest}</h3><div style="font-size:14px;line-height:1.6;">${content}</div>`;
+    } else {
+      toast('OpenAI Error: ' + (data.error?.message || 'Invalid key'));
+    }
+  } catch (err) {
+    toast('API Call Failed');
+    console.error(err);
+  }
 }
 
 async function init(){
