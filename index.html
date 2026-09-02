@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#0b5cff">
 <meta name="description" content="Trip Booker — flights, hotels, buses, cars, trains and cruises in one travel app.">
 <title>Trip Booker — Global Travel Platform</title>
+
+<!-- Supabase JS Client Library -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 :root{
   --bg:#f4f7fb;
@@ -184,7 +188,7 @@ footer {background:var(--card);border-top:1px solid var(--line);padding:40px 16p
   <div class="gatekeeper-card">
     <div class="gatekeeper-logo">✈</div>
     <h2 style="margin:0 0 6px;">Trip Booker</h2>
-    <p class="muted" style="margin-0 0 20px;font-size:14px;">Sign in or create an account to access flights, hotels, tours, and your travel dashboard.</p>
+    <p class="muted" style="margin:0 0 20px;font-size:14px;">Sign in or create an account to access flights, hotels, tours, and your travel dashboard.</p>
     
     <div class="auth-tabs">
       <button id="gateLoginTab" class="active" onclick="switchGateMode('login')">Sign In</button>
@@ -456,6 +460,11 @@ footer {background:var(--card);border-top:1px solid var(--line);padding:40px 16p
 <div class="toast" id="toast"></div>
 
 <script>
+// Supabase Configuration
+const SUPABASE_URL = "https://ospycnsdtrtuvivvvuqj.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_Otu2nDso-TKxsLibGX_WHA_zoDjnkeS";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // Destinations Data
 const destinations = [
  {id:'d1',name:'Nairobi',country:'Kenya',region:'Africa',type:'City',badge:'Popular',rating:4.7,desc:'Capital city, vibrant culture, business and gateway to Kenya safaris.',priceKES:8500,image:'https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?auto=format&fit=crop&q=80&w=800'},
@@ -480,7 +489,7 @@ const wallBgImages = [
 ];
 
 let state = {
-  user: JSON.parse(localStorage.getItem('tb_user')||'null'),
+  user: null,
   favs: JSON.parse(localStorage.getItem('tb_favs')||'[]'),
   bookings: JSON.parse(localStorage.getItem('tb_bookings')||'[]'),
   theme: localStorage.getItem('tb_theme') || 'light',
@@ -490,7 +499,6 @@ let state = {
 };
 
 function saveState(){
-  localStorage.setItem('tb_user',JSON.stringify(state.user));
   localStorage.setItem('tb_favs',JSON.stringify(state.favs));
   localStorage.setItem('tb_bookings',JSON.stringify(state.bookings));
   localStorage.setItem('tb_theme',state.theme);
@@ -503,7 +511,7 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2600);
 }
 
-// Gatekeeper Authentication Functions
+// Gatekeeper Authentication Functions using Supabase
 function switchGateMode(mode) {
   state.gateMode = mode;
   document.getElementById('gateLoginTab').classList.toggle('active', mode==='login');
@@ -512,32 +520,75 @@ function switchGateMode(mode) {
   document.getElementById('gateSubmitBtn').textContent = mode==='signup' ? 'Create Account & Enter App' : 'Sign In & Enter App';
 }
 
-function handleGatekeeperAuth() {
+async function handleGatekeeperAuth() {
   const email = document.getElementById('gateEmail').value;
-  if (!email) { toast('Please enter an email address'); return; }
-  const name = state.gateMode === 'signup' ? document.getElementById('gateName').value : email.split('@')[0];
-  
-  state.user = { name: name || 'Traveller', email: email, points: 1250 };
-  saveState();
-  checkAuthAndRender();
-  toast(`Welcome ${state.user.name}! App unlocked.`);
+  const password = document.getElementById('gatePass').value;
+  const name = document.getElementById('gateName').value;
+
+  if (!email || !password) { 
+    toast('Please enter email and password'); 
+    return; 
+  }
+
+  const submitBtn = document.getElementById('gateSubmitBtn');
+  submitBtn.disabled = true;
+
+  if (state.gateMode === 'signup') {
+    submitBtn.textContent = "Creating Account...";
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: { full_name: name || email.split('@')[0] }
+      }
+    });
+
+    if (error) {
+      toast(error.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create Account & Enter App';
+    } else {
+      toast('Account created! Please check your email to confirm registration.');
+      submitBtn.disabled = false;
+      switchGateMode('login');
+    }
+  } else {
+    submitBtn.textContent = "Signing In...";
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (error) {
+      toast(error.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign In & Enter App';
+    } else {
+      toast(`Welcome back! App unlocked.`);
+    }
+  }
 }
 
 function checkAuthAndRender() {
   if (state.user) {
     document.body.classList.add('authenticated');
-    document.getElementById('pName').value = state.user.name;
+    const fullName = state.user.user_metadata?.full_name || state.user.email.split('@')[0];
+    document.getElementById('pName').value = fullName;
     document.getElementById('pEmail').value = state.user.email;
   } else {
     document.body.classList.remove('authenticated');
   }
 }
 
-function logout() {
+async function logout() {
+  await supabaseClient.auth.signOut();
   state.user = null;
-  saveState();
   checkAuthAndRender();
   toast('Logged out successfully');
+}
+
+function saveProfile() {
+  toast('Profile information saved locally');
 }
 
 // Wallpaper Loop
@@ -737,6 +788,13 @@ function detectLocation() {
   document.getElementById('fromSearch').value = 'Nairobi, Kenya';
 }
 
+function resetSearch() {
+  document.getElementById('fromSearch').value = '';
+  document.getElementById('toSearch').value = '';
+  document.getElementById('dateSearch').value = '';
+  toast('Search cleared');
+}
+
 function generatePlan(){
   const dest = document.getElementById('planDest').value || 'Destination';
   const days = document.getElementById('planDays').value || 3;
@@ -750,9 +808,19 @@ function generatePlan(){
   `;
 }
 
-function init(){
+async function init(){
   applyTheme();
+  
+  // Set up Supabase Auth state listener
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  state.user = session ? session.user : null;
   checkAuthAndRender();
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    state.user = session ? session.user : null;
+    checkAuthAndRender();
+  });
+
   handleDestFilter();
   startWallpaperLoop();
   document.getElementById('currSelect').value = state.currency;
