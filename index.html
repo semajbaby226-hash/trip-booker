@@ -326,7 +326,7 @@ footer {background:var(--card);border-top:1px solid var(--line);padding:40px 16p
   </section>
 
   <section id="favourites" class="view">
-    <div class="sectionHead"><div><h2>❤️ Saved Favourites</h2><div class="muted">Saved on this browser.</div></div></div>
+    <div class="sectionHead"><div><h2>❤️ Saved Favourites</h2><div class="muted">Saved directly to your Supabase account.</div></div></div>
     <div id="favList" class="cards"></div>
   </section>
 
@@ -373,7 +373,7 @@ footer {background:var(--card);border-top:1px solid var(--line);padding:40px 16p
     <div class="sectionHead"><div><h2>🔒 Privacy Policy, Terms & Software Licence</h2></div></div>
     <div class="card">
       <h3>Privacy & Security Policy</h3>
-      <p>All profile data, travel histories, and preferences are encrypted and stored locally via persistent browser storage.</p>
+      <p>All profile data, travel histories, and preferences are encrypted and stored securely via Supabase PostgreSQL and authenticated RLS policies.</p>
       <h3>Terms, User Agreement & Software Licence</h3>
       <p class="muted">Trip Booker is licensed under standard open-source terms. Misuse of automated booking queries is strictly prohibited.</p>
     </div>
@@ -462,7 +462,7 @@ footer {background:var(--card);border-top:1px solid var(--line);padding:40px 16p
 <script>
 // Supabase Configuration
 const SUPABASE_URL = "https://ospycnsdtrtuvivvvuqj.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Otu2nDso-TKxsLibGX_WHA_zoDjnkeS";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zcHljbnNkdHJ0dXZpdnZ2dXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNzQ3NzgsImV4cCI6MjEwMzk1MDc3OH0.kmKezzOKvvwPHEd97ARMGQ7fqtxvLBxNsXzB9MeDjP4";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Destinations Data
@@ -490,8 +490,8 @@ const wallBgImages = [
 
 let state = {
   user: null,
-  favs: JSON.parse(localStorage.getItem('tb_favs')||'[]'),
-  bookings: JSON.parse(localStorage.getItem('tb_bookings')||'[]'),
+  favs: [],
+  bookings: [],
   theme: localStorage.getItem('tb_theme') || 'light',
   currency: localStorage.getItem('tb_curr') || 'KES',
   activeCategory: 'all',
@@ -499,8 +499,6 @@ let state = {
 };
 
 function saveState(){
-  localStorage.setItem('tb_favs',JSON.stringify(state.favs));
-  localStorage.setItem('tb_bookings',JSON.stringify(state.bookings));
   localStorage.setItem('tb_theme',state.theme);
   localStorage.setItem('tb_curr',state.currency);
 }
@@ -548,9 +546,8 @@ async function handleGatekeeperAuth() {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Create Account & Enter App';
     } else {
-      toast('Account created! Please check your email to confirm registration.');
+      toast('Account created! Logging you in...');
       submitBtn.disabled = false;
-      switchGateMode('login');
     }
   } else {
     submitBtn.textContent = "Signing In...";
@@ -569,15 +566,45 @@ async function handleGatekeeperAuth() {
   }
 }
 
-function checkAuthAndRender() {
+async function checkAuthAndRender() {
   if (state.user) {
     document.body.classList.add('authenticated');
     const fullName = state.user.user_metadata?.full_name || state.user.email.split('@')[0];
     document.getElementById('pName').value = fullName;
     document.getElementById('pEmail').value = state.user.email;
+    await fetchUserData();
   } else {
     document.body.classList.remove('authenticated');
+    state.favs = [];
+    state.bookings = [];
   }
+}
+
+async function fetchUserData() {
+  if (!state.user) return;
+  
+  // Fetch Favorites from Supabase
+  const { data: favData, error: favErr } = await supabaseClient
+    .from('favorites')
+    .select('destination_id');
+  
+  if (!favErr && favData) {
+    state.favs = favData.map(f => f.destination_id);
+  }
+
+  // Fetch Bookings from Supabase
+  const { data: bookData, error: bookErr } = await supabaseClient
+    .from('bookings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (!bookErr && bookData) {
+    state.bookings = bookData;
+  }
+
+  handleDestFilter();
+  renderFavourites();
+  renderTrips();
 }
 
 async function logout() {
@@ -588,7 +615,7 @@ async function logout() {
 }
 
 function saveProfile() {
-  toast('Profile information saved locally');
+  toast('Profile information updated');
 }
 
 // Wallpaper Loop
@@ -690,16 +717,40 @@ function setCategoryFilter(cat, btn) {
   handleDestFilter();
 }
 
-function toggleFav(event, id) {
+async function toggleFav(event, id) {
   if (event) event.stopPropagation();
-  if (state.favs.includes(id)) {
-    state.favs = state.favs.filter(x => x !== id);
-    toast('Removed from favourites');
-  } else {
-    state.favs.push(id);
-    toast('Saved to favourites');
+  if (!state.user) {
+    toast('Please sign in to save favourites');
+    return;
   }
-  saveState();
+
+  if (state.favs.includes(id)) {
+    // Delete from Supabase
+    const { error } = await supabaseClient
+      .from('favorites')
+      .delete()
+      .eq('destination_id', id);
+
+    if (!error) {
+      state.favs = state.favs.filter(x => x !== id);
+      toast('Removed from favourites');
+    } else {
+      toast('Error removing favourite');
+    }
+  } else {
+    // Insert into Supabase
+    const { error } = await supabaseClient
+      .from('favorites')
+      .insert([{ destination_id: id }]);
+
+    if (!error) {
+      state.favs.push(id);
+      toast('Saved to favourites');
+    } else {
+      toast('Error saving favourite');
+    }
+  }
+  
   handleDestFilter();
   renderFavourites();
 }
@@ -708,7 +759,7 @@ function renderFavourites(){
   const list = destinations.filter(d => state.favs.includes(d.id));
   const container = document.getElementById('favList');
   if(container) {
-    container.innerHTML = list.length ? list.map(d => renderDestinationCard(d)).join('') : '<div class="muted">No saved favourites.</div>';
+    container.innerHTML = list.length ? list.map(d => renderDestinationCard(d)).join('') : '<div class="muted">No saved favourites in database.</div>';
   }
 }
 
@@ -738,45 +789,70 @@ function openDetailModal(id) {
   openModal('bookingModal');
 }
 
-function quickBook(destName, priceKES) {
+async function quickBook(destName, priceKES) {
+  if (!state.user) {
+    toast('Please sign in to make a booking');
+    return;
+  }
+
   const method = document.getElementById('payMethod')?.value || 'M-Pesa';
-  const newBooking = {
-    id: 'TB-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
-    destination: destName,
-    priceKES: priceKES,
-    method: method,
-    date: new Date().toLocaleDateString()
-  };
-  state.bookings.unshift(newBooking);
-  saveState();
-  closeModal('bookingModal');
-  toast(`Paid via ${method}! Booking ref: ${newBooking.id}`);
-  showView('trips');
+  const bookingId = 'TB-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+  // Insert into Supabase PostgreSQL
+  const { data, error } = await supabaseClient
+    .from('bookings')
+    .insert([{
+      id: bookingId,
+      destination: destName,
+      price_kes: priceKES,
+      payment_method: method
+    }])
+    .select();
+
+  if (error) {
+    toast('Booking failed: ' + error.message);
+  } else {
+    closeModal('bookingModal');
+    toast(`Paid via ${method}! Booking ref: ${bookingId}`);
+    await fetchUserData();
+    showView('trips');
+  }
 }
 
-function cancelBooking(id) {
-  state.bookings = state.bookings.filter(b => b.id !== id);
-  saveState();
-  toast('Booking cancelled');
-  renderTrips();
+async function cancelBooking(id) {
+  const { error } = await supabaseClient
+    .from('bookings')
+    .delete()
+    .eq('id', id);
+
+  if (!error) {
+    toast('Booking cancelled');
+    await fetchUserData();
+  } else {
+    toast('Error cancelling booking');
+  }
 }
 
 function renderTrips() {
   const container = document.getElementById('tripList');
   if(!container) return;
-  container.innerHTML = state.bookings.length ? state.bookings.map(b => `
-    <div class="card" style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h3>${b.destination}</h3>
-        <span class="badge" style="background:#dcfce7;color:#15803d">CONFIRMED</span>
+  
+  container.innerHTML = state.bookings.length ? state.bookings.map(b => {
+    const formattedDate = new Date(b.created_at || Date.now()).toLocaleDateString();
+    return `
+      <div class="card" style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3>${b.destination}</h3>
+          <span class="badge" style="background:#dcfce7;color:#15803d">CONFIRMED</span>
+        </div>
+        <div class="muted">Ref: <strong>${b.id}</strong> • Date: ${formattedDate} • Paid via ${b.payment_method}</div>
+        <div class="price" style="font-size:1.1rem;margin-top:6px;">${formatPrice(b.price_kes)}</div>
+        <div class="actions" style="margin-top:10px;">
+          <button class="btn small danger" onclick="cancelBooking('${b.id}')">Cancel Booking</button>
+        </div>
       </div>
-      <div class="muted">Ref: <strong>${b.id}</strong> • Date: ${b.date} • Paid via ${b.method}</div>
-      <div class="price" style="font-size:1.1rem;margin-top:6px;">${formatPrice(b.priceKES)}</div>
-      <div class="actions" style="margin-top:10px;">
-        <button class="btn small danger" onclick="cancelBooking('${b.id}')">Cancel Booking</button>
-      </div>
-    </div>
-  `).join('') : '<div class="muted">No booking history available.</div>';
+    `;
+  }).join('') : '<div class="muted">No booking history available.</div>';
 }
 
 function openModal(id){ document.getElementById(id).classList.add('show'); }
@@ -814,11 +890,11 @@ async function init(){
   // Set up Supabase Auth state listener
   const { data: { session } } = await supabaseClient.auth.getSession();
   state.user = session ? session.user : null;
-  checkAuthAndRender();
+  await checkAuthAndRender();
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
     state.user = session ? session.user : null;
-    checkAuthAndRender();
+    await checkAuthAndRender();
   });
 
   handleDestFilter();
