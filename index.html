@@ -835,33 +835,28 @@ async function generateRealAIPlan() {
   }
 
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [{
-          role: 'user',
-          content: `Create a concise ${days}-day travel itinerary for ${dest} for ${count} travellers with a ${style} style. Return in short clean bullet points.`
-        }]
-      })
-    });
+      const SUPABASE_URL = "https://ospycnsdtrtuvivvvuqj.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zcHljbnNkdHJ0dXZpdnZ2dXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNzQ3NzgsImV4cCI6MjEwMzk1MDc3OH0.kmKezzOKvvwPHEd97ARMGQ7fqtxvLBxNsXzB9MeDjP4";
 
-    const data = await res.json();
-    if (data.choices && data.choices[0]) {
-      const content = data.choices[0].message.content.replace(/\n/g, '<br>');
-      outputEl.innerHTML = `<h3>Custom AI Plan for ${dest}</h3><div style="font-size:14px;line-height:1.6;">${content}</div>`;
-    } else {
-      toast('OpenAI Error: ' + (data.error?.message || 'Invalid key'));
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-itinerary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({ destination: dest, days, count, style })
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      outputEl.innerHTML = `<h3>Custom AI Plan for ${dest}</h3>` + data.itinerary;
+    } catch (err) {
+      toast("API Call Failed: " + err.message);
+      console.error(err);
     }
-  } catch (err) {
-    toast('API Call Failed');
-    console.error(err);
-  }
-}
+
 
 async function init(){
   document.documentElement.setAttribute('data-theme', state.theme);
