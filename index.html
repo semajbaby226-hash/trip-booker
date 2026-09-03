@@ -859,7 +859,8 @@ async function handleGatekeeperAuth() {
     }
 
     // Check if client is initialized
-    const client = window.supabaseClient || supabaseClient;
+    const client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null);
+
     if (!client) {
       alert("Error: Supabase client is not initialized!");
       return;
@@ -869,6 +870,7 @@ async function handleGatekeeperAuth() {
       email: emailVal,
       password: passVal
     });
+
 
     if (error) {
       alert("Sign-in error: " + error.message);
