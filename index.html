@@ -840,26 +840,44 @@ async function generateRealAIPlan() {
       toast("API Call Failed: " + err.message);
       console.error(err);
     }
-
 async function handleGatekeeperAuth() {
-  const emailVal = document.getElementById('gateEmail').value.trim();
-  const passVal = document.getElementById('gatePass').value.trim();
+  try {
+    const emailInput = document.getElementById('gateEmail');
+    const passInput = document.getElementById('gatePass');
 
-  if (!emailVal || !passVal) {
-    alert("Please enter both email and password.");
-    return;
-  }
+    if (!emailInput || !passInput) {
+      alert("Error: Form input IDs missing from page!");
+      return;
+    }
 
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: emailVal,
-    password: passVal
-  });
+    const emailVal = emailInput.value.trim();
+    const passVal = passInput.value.trim();
 
-  if (error) {
-    alert("Sign-in error: " + error.message);
-  } else {
-    alert("Success! Signed in.");
-    window.location.reload();
+    if (!emailVal || !passVal) {
+      alert("Please enter both email and password.");
+      return;
+    }
+
+    // Check if client is initialized
+    const client = window.supabaseClient || supabaseClient;
+    if (!client) {
+      alert("Error: Supabase client is not initialized!");
+      return;
+    }
+
+    const { data, error } = await client.auth.signInWithPassword({
+      email: emailVal,
+      password: passVal
+    });
+
+    if (error) {
+      alert("Sign-in error: " + error.message);
+    } else {
+      alert("Success! Signed in.");
+      window.location.reload();
+    }
+  } catch (err) {
+    alert("JavaScript Error: " + err.message);
   }
 }
 
