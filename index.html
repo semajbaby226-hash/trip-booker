@@ -220,7 +220,7 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
         <label>Password</label>
         <input id="gatePass" type="password" placeholder="••••••••" required>
       </div>
-      <button type="submit" class="b-btn" style="width:100%;padding:12px;margin-top:10px;" id="gateSubmitBtn">Continue with Email</button>
+      <button type="button" onclick="handleGatekeeperAuth() class="b-btn" style="width:100%;padding:12px;margin-top:10px;" id="gateSubmitBtn">Continue with Email</button>
     </form>
   </div>
 </div>
@@ -839,6 +839,27 @@ async function generateRealAIPlan() {
       console.error(err);
     }
 
+async function handleGatekeeperAuth() {
+  const emailVal = document.getElementById('gateEmail').value.trim();
+  const passVal = document.getElementById('gatePass').value.trim();
+
+  if (!emailVal || !passVal) {
+    alert("Please enter both email and password.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: emailVal,
+    password: passVal
+  });
+
+  if (error) {
+    alert("Sign-in error: " + error.message);
+  } else {
+    alert("Success! Signed in.");
+    window.location.reload();
+  }
+}
 
 async function init(){
   document.documentElement.setAttribute('data-theme', state.theme);
