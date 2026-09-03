@@ -811,29 +811,11 @@ async function generateRealAIPlan() {
   const days = document.getElementById('planDays').value || 3;
   const count = document.getElementById('planCount').value || 2;
   const style = document.getElementById('planStyle').value || 'General Stays';
-  const apiKey = document.getElementById('openaiKey').value.trim();
   const outputEl = document.getElementById('planOutput');
   
   outputEl.innerHTML = `<div style="color:var(--muted)">🤖 Generating dynamic custom itinerary with AI...</div>`;
   BI.track('ai_plan_generated', { dest, days, count, style });
-
-  if (!apiKey) {
-    // Elegant fallback itinerary generation when API key field is empty
-    setTimeout(() => {
-      outputEl.innerHTML = `
-        <h3 style="margin-top:0;">Itinerary for ${dest} (${days} Days)</h3>
-        <p><strong>Travellers:</strong> ${count} | <strong>Style:</strong> ${style}</p>
-        <ul style="padding-left:18px;line-height:1.6;font-size:14px;">
-          <li><strong>Day 1:</strong> Arrival in ${dest}, hotel check-in, orientation, and evening welcome dinner.</li>
-          <li><strong>Day 2:</strong> Guided sightseeing tour, local shopping, and landmark exploration.</li>
-          <li><strong>Day 3:</strong> Morning relaxation, souvenir shopping, checkout, and airport transfer.</li>
-        </ul>
-        <p style="font-size:11px;color:var(--muted);">Tip: Enter your OpenAI API Key above for live personalized GPT responses.</p>
-      `;
-    }, 800);
-    return;
-  }
-
+  
   try {
       const SUPABASE_URL = "https://ospycnsdtrtuvivvvuqj.supabase.co";
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zcHljbnNkdHJ0dXZpdnZ2dXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNzQ3NzgsImV4cCI6MjEwMzk1MDc3OH0.kmKezzOKvvwPHEd97ARMGQ7fqtxvLBxNsXzB9MeDjP4";
