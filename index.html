@@ -207,7 +207,8 @@ footer { background: #fcfcfc; border-top: 1px solid var(--line); padding: 40px 1
       <button id="gateSignupTab" class="b-btn" style="flex:1;background:transparent;color:var(--b-blue-light);border:1px solid var(--b-blue-light);" onclick="switchGateMode('signup')">Register</button>
     </div>
 
-    <form onsubmit="event.preventDefault(); handleGatekeeperAuth();">
+    <form onsubmit="event.preventDefault();">
+ 
       <div id="gateNameGroup" class="field" style="display:none;">
         <label>Full Name</label>
         <input id="gateName" placeholder="e.g. James Nderi">
