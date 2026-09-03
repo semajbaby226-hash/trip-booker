@@ -840,10 +840,7 @@ async function generateRealAIPlan() {
       toast("API Call Failed: " + err.message);
       console.error(err);
     }
-  alert("MIDDLE OF SCRIPT WORKS");
-async function handleGatekeeperAuth() {
-
-async function handleGatekeeperAuth() {
+  async function handleGatekeeperAuth() {
   try {
     const emailInput = document.getElementById('gateEmail');
     const passInput = document.getElementById('gatePass');
@@ -861,7 +858,7 @@ async function handleGatekeeperAuth() {
       return;
     }
 
-    // Check if client is initialized
+    // Define client FIRST, then check if it exists
     const client = window.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null);
 
     if (!client) {
@@ -874,18 +871,15 @@ async function handleGatekeeperAuth() {
       password: passVal
     });
 
-
     if (error) {
       alert("Sign-in error: " + error.message);
     } else {
       alert("Success! Signed in.");
       window.location.reload();
     }
-  } catch (err) {
-    alert("JavaScript Error: " + err.message);
-  }
+} catch (err) {
+  alert("JavaScript Error: " + err.message);
 }
-
 async function init(){
   document.documentElement.setAttribute('data-theme', state.theme);
   const currSelect = document.getElementById('currSelect');
