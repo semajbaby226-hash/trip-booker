@@ -1,26 +1,665 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>App Test</title>
-  <style>
-    body { font-family: sans-serif; background: #0f172a; color: #fff; padding: 20px; text-align: center; }
-    button { padding: 12px 24px; font-size: 16px; background: #38bdf8; border: none; border-radius: 6px; cursor: pointer; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Booker — Enterprise Master Edition | Kenya</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Leaflet Map CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
-<body>
+<body class="bg-slate-950 text-slate-800 font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white">
 
-  <h2>System Check</h2>
-  <button type="button" onclick="testClick()">Click Me to Test</button>
+    <!-- ========================================================================= -->
+    <!-- 1. MANDATORY AUTHENTICATION WALL (LOCKED BY DEFAULT)                        -->
+    <!-- ========================================================================= -->
+    <div id="auth-wall" class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+        <div class="absolute inset-0 opacity-40 bg-cover bg-center pointer-events-none" style="background-image: url('https://images.unsplash.com/photo-1516426122078-c23e76319801');"></div>
 
-  <script>
-    alert("1. SCRIPT LOADED SUCCESSFULLY!");
+        <div class="relative z-10 bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 space-y-6 border border-white/20">
+            <div class="text-center space-y-2">
+                <div class="inline-flex p-3.5 bg-blue-50 text-blue-600 rounded-2xl text-2xl mb-1 shadow-inner">
+                    <i class="fa-solid fa-plane-departure"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-950 tracking-tight">Trip<span class="text-blue-600">Booker</span></h1>
+                <p class="text-xs text-slate-400 font-semibold">Founded by James Nderi • Kenya</p>
+                <p id="auth-subtitle" class="text-xs text-slate-500 font-medium pt-2">Security check required. Please sign in or register to unlock the 70-feature master portal.</p>
+            </div>
 
-    function testClick() {
-      alert("2. BUTTON CLICK WORKING!");
-    }
-  </script>
+            <div id="auth-error" class="hidden bg-red-50 border border-red-200 text-red-600 text-xs p-3.5 rounded-2xl font-medium"></div>
 
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Email Address</label>
+                    <input type="email" id="auth-email" required placeholder="james@tripbooker.co.ke" class="w-full p-3.5 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50/50 transition">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••" class="w-full p-3.5 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50/50 transition">
+                </div>
+                <button type="submit" id="auth-submit-btn" class="w-full bg-blue-600 text-white py-3.5 rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-600/30 text-sm">
+                    Sign In & Unlock Master App
+                </button>
+            </form>
+
+            <div class="text-center text-xs text-slate-600">
+                <span id="auth-toggle-text">Don't have an account?</span>
+                <button type="button" onclick="toggleAuthMode()" class="text-blue-600 font-bold ml-1 hover:underline" id="auth-toggle-btn">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 2. MAIN APPLICATION CONTAINER (HIDDEN UNTIL AUTHENTICATED)               -->
+    <!-- ========================================================================= -->
+    <div id="app-container" style="display: none;" class="flex-1 flex flex-col">
+        
+        <!-- Navbar -->
+        <header class="bg-white shadow-sm sticky top-0 z-40 border-b border-slate-100">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="switchTab('home')">
+                    <i class="fa-solid fa-plane-departure text-blue-600 text-2xl"></i>
+                    <span class="text-xl font-bold tracking-tight text-slate-900">Trip<span class="text-blue-600">Booker</span></span>
+                </div>
+                <nav class="hidden lg:flex space-x-5 text-xs font-semibold text-slate-600">
+                    <button onclick="switchTab('home')" class="hover:text-blue-600 text-blue-600 transition" id="nav-home">Home</button>
+                    <button onclick="switchTab('search')" class="hover:text-blue-600 transition" id="nav-search">Search & Inventory</button>
+                    <button onclick="switchTab('planner')" class="hover:text-blue-600 transition" id="nav-planner">AI Trip Planner</button>
+                    <button onclick="switchTab('map')" class="hover:text-blue-600 transition" id="nav-map">Interactive Map</button>
+                    <button onclick="switchTab('bookings')" class="hover:text-blue-600 transition" id="nav-bookings">Bookings</button>
+                    <button onclick="switchTab('favorites')" class="hover:text-blue-600 transition" id="nav-favorites">Favorites</button>
+                    <button onclick="switchTab('account')" class="hover:text-blue-600 transition" id="nav-account">Account & Settings</button>
+                    <button onclick="switchTab('legal')" class="hover:text-blue-600 transition" id="nav-legal">Legal & Support</button>
+                </nav>
+                <div class="flex items-center space-x-3">
+                    <span id="user-display-email" class="text-xs font-medium text-slate-600 hidden sm:inline bg-slate-100 px-3 py-1.5 rounded-full"></span>
+                    <button onclick="handleSignOut()" class="bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-700 px-3 py-2 rounded-lg text-sm font-medium transition" title="Sign Out">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Matrix -->
+        <main class="flex-1 pb-16">
+
+            <!-- TAB 1: HOME / DISCOVERY -->
+            <div id="tab-home" class="tab-content space-y-12">
+                <section class="relative bg-blue-900 text-white py-28 px-4 overflow-hidden">
+                    <div class="absolute inset-0 opacity-40 bg-cover bg-center transition-all duration-1000" id="hero-bg" style="background-image: url('https://images.unsplash.com/photo-1516426122078-c23e76319801');"></div>
+                    <div class="relative max-w-5xl mx-auto text-center space-y-6">
+                        <span class="bg-blue-800 text-blue-200 text-xs font-bold px-4 py-2 rounded-full uppercase tracking-wider">Kenya's Premier Travel Engine • Founder: James Nderi</span>
+                        <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight">Explore Kenya & Beyond With Confidence</h1>
+                        <p class="text-lg text-blue-100 max-w-2xl mx-auto">Seamless flights, luxury lodges, SGR trains, car rentals, cruises, buses, and custom AI-generated itineraries.</p>
+                        
+                        <!-- Master Search Bar -->
+                        <div class="bg-white p-4 rounded-3xl shadow-2xl max-w-4xl mx-auto text-slate-800 grid grid-cols-1 md:grid-cols-4 gap-3 text-left">
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-slate-400">Destination</label>
+                                <input type="text" id="home-dest-input" placeholder="Nairobi, Mara, Diani..." class="w-full p-2 text-xs font-semibold outline-none bg-slate-50 rounded-xl mt-1">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-slate-400">Travel Dates</label>
+                                <input type="date" id="home-date-input" class="w-full p-2 text-xs font-semibold outline-none bg-slate-50 rounded-xl mt-1">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold uppercase text-slate-400">Travellers</label>
+                                <select id="home-travellers-input" class="w-full p-2 text-xs font-semibold outline-none bg-slate-50 rounded-xl mt-1">
+                                    <option>1 Adult, Economy</option>
+                                    <option>2 Adults, Standard</option>
+                                    <option>Family (4+), VIP</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="triggerMasterSearch()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs transition shadow-lg">Search All</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Category Quick Links -->
+                <div class="max-w-7xl mx-auto px-4">
+                    <h3 class="text-lg font-bold text-slate-900 mb-4">Browse Booking Categories</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+                        <button onclick="filterInventory('flight')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-plane text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Flights</div>
+                        </button>
+                        <button onclick="filterInventory('hotel')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-hotel text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Hotels</div>
+                        </button>
+                        <button onclick="filterInventory('car')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-car text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Cars</div>
+                        </button>
+                        <button onclick="filterInventory('train')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-train text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Trains (SGR)</div>
+                        </button>
+                        <button onclick="filterInventory('cruise')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-ship text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Cruises</div>
+                        </button>
+                        <button onclick="filterInventory('bus')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-bus text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Bus</div>
+                        </button>
+                        <button onclick="filterInventory('package')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-umbrella-beach text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Packages</div>
+                        </button>
+                        <button onclick="switchTab('map')" class="p-4 bg-white rounded-2xl shadow-sm border text-center hover:border-blue-600 transition space-y-2">
+                            <i class="fa-solid fa-map-location-dot text-blue-600 text-xl"></i>
+                            <div class="text-xs font-bold">Live Map</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Popular Destinations Grid -->
+                <div class="max-w-7xl mx-auto px-4 space-y-6">
+                    <h2 class="text-2xl font-bold text-slate-900">Popular Destinations & Recommended Safaris</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="home-featured-grid"></div>
+                </div>
+            </div>
+
+            <!-- TAB 2: SEARCH & FILTERING -->
+            <div id="tab-search" class="tab-content hidden max-w-7xl mx-auto px-4 py-8 space-y-6">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border space-y-4">
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <input type="text" id="search-filter-input" placeholder="Search flights, hotels, SGR trains, cruises, cars..." oninput="renderSearchResults()" class="w-full md:w-96 p-3.5 border rounded-2xl text-sm outline-none bg-slate-50">
+                        <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                            <button onclick="filterInventory('all')" class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">All</button>
+                            <button onclick="filterInventory('flight')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">Flights</button>
+                            <button onclick="filterInventory('hotel')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">Hotels</button>
+                            <button onclick="filterInventory('car')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">Cars</button>
+                            <button onclick="filterInventory('train')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">Trains</button>
+                            <button onclick="filterInventory('cruise')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">Cruises</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="search-results-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+            </div>
+
+            <!-- TAB 3: BOOKING & PAYMENTS MODAL / VIEW -->
+            <div id="tab-booking-modal" class="tab-content hidden max-w-3xl mx-auto px-4 py-8">
+                <div class="bg-white p-8 rounded-3xl shadow-xl border space-y-6">
+                    <div class="flex justify-between items-center border-b pb-4">
+                        <div>
+                            <span class="text-[10px] font-bold uppercase bg-blue-50 text-blue-600 px-3 py-1 rounded-full">Secure Checkout</span>
+                            <h2 class="text-2xl font-bold text-slate-900 mt-1" id="checkout-title">Booking Checkout</h2>
+                        </div>
+                        <button onclick="switchTab('search')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="p-4 bg-slate-50 rounded-2xl border flex justify-between items-center">
+                            <div>
+                                <div class="text-xs font-bold text-slate-500">Item Selected</div>
+                                <div id="checkout-item-name" class="font-bold text-slate-900 text-lg"></div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xs font-bold text-slate-500">Total Due</div>
+                                <div id="checkout-item-price" class="font-extrabold text-blue-600 text-xl"></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <label class="block text-xs font-bold uppercase text-slate-500">Select Payment Method</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <button type="button" onclick="selectPaymentMethod('mpesa')" id="pay-btn-mpesa" class="p-4 border-2 border-blue-600 bg-blue-50/50 rounded-2xl text-left space-y-1">
+                                    <div class="font-bold text-blue-900 text-sm"><i class="fa-solid fa-mobile-screen mr-2 text-green-600"></i> M-Pesa STK Push</div>
+                                    <div class="text-[11px] text-slate-500">Instant Safaricom prompt</div>
+                                </button>
+                                <button type="button" onclick="selectPaymentMethod('card')" id="pay-btn-card" class="p-4 border-2 border-slate-200 rounded-2xl text-left space-y-1">
+                                    <div class="font-bold text-slate-900 text-sm"><i class="fa-solid fa-credit-card mr-2 text-blue-600"></i> Credit / Debit Card</div>
+                                    <div class="text-[11px] text-slate-500">Visa, Mastercard, AMEX</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="payment-fields-container" class="space-y-3 pt-2">
+                            <div id="mpesa-field-group">
+                                <label class="block text-xs font-bold uppercase text-slate-500 mb-1">M-Pesa Phone Number</label>
+                                <input type="tel" id="checkout-phone" placeholder="0712345678" class="w-full p-3.5 border rounded-2xl text-sm outline-none bg-slate-50">
+                            </div>
+                        </div>
+
+                        <button onclick="processFinalPayment()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl shadow-lg transition text-sm">
+                            Authorize & Confirm Booking
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: AI TRIP PLANNER -->
+            <div id="tab-planner" class="tab-content hidden max-w-4xl mx-auto px-4 py-8 space-y-6">
+                <div class="bg-purple-900 text-white p-8 rounded-3xl space-y-4 shadow-xl">
+                    <h2 class="text-3xl font-extrabold">AI Trip Planner</h2>
+                    <p class="text-purple-100 text-sm">Generate a complete custom day-by-day itinerary instantly using intelligent scheduling algorithms.</p>
+                </div>
+                <div class="bg-white p-8 rounded-3xl shadow-sm border space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Destination & Vibe</label>
+                        <input type="text" id="ai-destination" placeholder="e.g. Maasai Mara Safari & Diani Beach" class="w-full p-3.5 border rounded-2xl text-sm outline-none bg-slate-50">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Duration (Days)</label>
+                            <input type="number" id="ai-days" value="5" min="1" max="14" class="w-full p-3.5 border rounded-2xl text-sm outline-none bg-slate-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Budget Level</label>
+                            <select id="ai-budget" class="w-full p-3.5 border rounded-2xl text-sm outline-none bg-slate-50">
+                                <option>Luxury ($$$$)</option>
+                                <option>Mid-Range ($$$)</option>
+                                <option>Budget Explorer ($$)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="generateAITrip()" id="ai-generate-btn" class="w-full bg-purple-600 text-white font-bold py-3.5 rounded-2xl hover:bg-purple-700 transition shadow-lg shadow-purple-600/30">
+                        Generate Custom Itinerary & Share
+                    </button>
+                </div>
+                <div id="ai-result-container" class="hidden bg-white p-8 rounded-3xl shadow-sm border space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-2xl font-bold" id="ai-output-title">Your Itinerary</h3>
+                        <div class="flex gap-2">
+                            <button onclick="window.print()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"><i class="fa-solid fa-print mr-1"></i> Print / PDF</button>
+                            <button onclick="alert('Trip link copied to clipboard!')" class="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold"><i class="fa-solid fa-share-nodes mr-1"></i> Share</button>
+                        </div>
+                    </div>
+                    <div id="ai-output-content" class="text-sm text-slate-700 space-y-4"></div>
+                </div>
+            </div>
+
+            <!-- TAB 5: MAP & LOCATION -->
+            <div id="tab-map" class="tab-content hidden max-w-7xl mx-auto px-4 py-8 space-y-4">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border">
+                    <h2 class="text-2xl font-bold mb-1">Interactive Kenya Travel Map</h2>
+                    <p class="text-xs text-slate-500 mb-4">Explore destinations, national parks, hotels, and transport hubs across Kenya.</p>
+                    <div id="leaflet-map" class="h-[500px] w-full rounded-2xl z-10"></div>
+                </div>
+            </div>
+
+            <!-- TAB 6: BOOKINGS HISTORY -->
+            <div id="tab-bookings" class="tab-content hidden max-w-4xl mx-auto px-4 py-8 space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold">Your Bookings & E-Tickets</h2>
+                    <span id="booking-count-badge" class="bg-blue-50 text-blue-600 font-bold text-xs px-3 py-1.5 rounded-xl">1 Active</span>
+                </div>
+                <div id="bookings-list" class="space-y-4"></div>
+            </div>
+
+            <!-- TAB 7: FAVORITES / SAVED TRIPS -->
+            <div id="tab-favorites" class="tab-content hidden max-w-7xl mx-auto px-4 py-8 space-y-6">
+                <h2 class="text-2xl font-bold">Saved Favorites & Wishlist</h2>
+                <div id="favorites-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+            </div>
+
+            <!-- TAB 8: ACCOUNT & SETTINGS -->
+            <div id="tab-account" class="tab-content hidden max-w-4xl mx-auto px-4 py-8 space-y-6">
+                <div class="bg-white p-8 rounded-3xl shadow-sm border space-y-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="h-16 w-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl font-bold">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900" id="account-email-heading">Account Dashboard</h2>
+                            <p class="text-xs text-slate-500 font-medium">Founder Identity: James Nderi • Trip Booker Kenya</p>
+                        </div>
+                    </div>
+                    <div class="border-t pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="p-4 bg-slate-50 rounded-2xl border space-y-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">Preferred Language</label>
+                            <select class="w-full p-2.5 bg-white border rounded-xl text-xs font-semibold">
+                                <option>English (UK / Kenya)</option>
+                                <option>Swahili (Kiswahili)</option>
+                                <option>French</option>
+                            </select>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-2xl border space-y-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase">Currency Support</label>
+                            <select class="w-full p-2.5 bg-white border rounded-xl text-xs font-semibold">
+                                <option>KES (Ksh)</option>
+                                <option>USD ($)</option>
+                                <option>EUR (€)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 9: LEGAL, PRIVACY & ABOUT US -->
+            <div id="tab-legal" class="tab-content hidden max-w-4xl mx-auto px-4 py-8 space-y-8">
+                <div class="bg-white p-8 rounded-3xl shadow-sm border space-y-6">
+                    <h2 class="text-2xl font-bold text-slate-900">Legal, Privacy & About Us</h2>
+                    
+                    <div class="space-y-4 text-xs text-slate-600 leading-relaxed">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-900 mb-1">About Trip Booker</h3>
+                            <p>Trip Booker is Kenya's premier end-to-end travel platform, founded by James Nderi. We connect travelers with seamless booking solutions for flights, hotels, SGR trains, car rentals, cruises, buses, and custom AI-generated itineraries with dedicated 24-hour support.</p>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <h3 class="font-bold text-sm text-slate-900 mb-1">Privacy Policy & Secure Data</h3>
+                            <p>We prioritize the security of your personal and financial information. All M-Pesa transactions and credit card data are encrypted using secure industry-standard protocols. Your data is never sold to third parties and is used solely to manage your travel bookings and account preferences.</p>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <h3 class="font-bold text-sm text-slate-900 mb-1">Terms & Conditions / User Agreement</h3>
+                            <p>By using Trip Booker, you agree to adhere to our cancellation policies, payment terms, and vendor guidelines. Bookings are subject to availability and real-time confirmation through our integrated partner networks.</p>
+                        </div>
+
+                        <div class="p-4 bg-blue-50 text-blue-900 rounded-2xl text-xs font-semibold mt-4">
+                            <i class="fa-solid fa-headset mr-2 text-blue-600 text-base"></i> 24-Hour Help Desk: support@tripbooker.co.ke | Tel: +254 700 000000
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-3xl shadow-sm border space-y-4">
+                    <h3 class="text-xl font-bold">Frequently Asked Questions (FAQ)</h3>
+                    <div class="space-y-3 text-xs text-slate-600">
+                        <div class="p-4 bg-slate-50 rounded-2xl"><b class="text-slate-900">How does M-Pesa payment work?</b><br>When you checkout with M-Pesa, an STK push is transmitted directly to your Safaricom mobile phone number for instant confirmation.</div>
+                        <div class="p-4 bg-slate-50 rounded-2xl"><b class="text-slate-900">Can I cancel or modify my booking?</b><br>Yes, all upcoming bookings include instant cancellation options directly from your bookings dashboard.</div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 3. COMPLETE JAVASCRIPT LOGIC ENGINE                                       -->
+    <!-- ========================================================================= -->
+    <script>
+        let isSignUpMode = false;
+        let mapInitialized = false;
+        let leafletMap = null;
+        let activePaymentMethod = 'mpesa';
+        let currentCheckoutItem = null;
+
+        let userBookings = [
+            { id: 'TB-9482', title: 'Nairobi (NBO) to Mombasa (MBA) Flight', price: 6500, date: '2026-04-12', status: 'Confirmed', payment: 'M-Pesa STK Paid' }
+        ];
+
+        let favoritesList = [];
+
+        const mockInventory = [
+            { id: 1, type: 'flight', title: 'Nairobi (NBO) to Mombasa (MBA)', subtitle: 'Direct Flight • Jambojet', price: 6500, image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05' },
+            { id: 2, type: 'hotel', title: 'Sarova Mara Game Camp', subtitle: 'Maasai Mara Luxury Lodge', price: 24000, image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945' },
+            { id: 3, type: 'car', title: 'Toyota Land Cruiser Prado', subtitle: '4x4 Safari Spec • Unlimited Mileage', price: 10000, image: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf' },
+            { id: 4, type: 'train', title: 'Madaraka Express SGR (Nairobi - Mombasa)', subtitle: 'First Class Coach', price: 4500, image: 'https://images.unsplash.com/photo-1515165562839-978bbcfc993a' },
+            { id: 5, type: 'cruise', title: 'Indian Ocean Sunset Dhow Cruise', subtitle: 'Mombasa Coastal Waters', price: 8500, image: 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62' },
+            { id: 6, type: 'bus', title: 'Modern Coast VIP Bus (Nairobi - Kisumu)', subtitle: 'Executive Recliner Seat', price: 2200, image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957' },
+            { id: 7, type: 'package', title: 'Amboseli Kilimanjaro Getaway', subtitle: '3 Days / 2 Nights All-Inclusive', price: 45000, image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477' }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedEmail = localStorage.getItem('tb_user_email');
+            if (savedEmail) {
+                unlockApp(savedEmail);
+            } else {
+                document.getElementById('auth-wall').style.display = 'flex';
+                document.getElementById('app-container').style.display = 'none';
+            }
+            renderHomeFeatured();
+        });
+
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('auth-subtitle').textContent = isSignUpMode ? 'Create a new account to unlock the 70-feature master portal.' : 'Security check required. Please sign in or register to unlock the 70-feature master portal.';
+            document.getElementById('auth-submit-btn').textContent = isSignUpMode ? 'Create Account & Unlock Master App' : 'Sign In & Unlock Master App';
+            document.getElementById('auth-toggle-text').textContent = isSignUpMode ? 'Already have an account?' : "Don't have an account?";
+            document.getElementById('auth-toggle-btn').textContent = isSignUpMode ? 'Sign In' : 'Sign Up';
+        }
+
+        function handleAuthSubmit(event) {
+            event.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const errBox = document.getElementById('auth-error');
+            errBox.classList.add('hidden');
+
+            if (!email || !password) {
+                errBox.textContent = 'Please provide both email and password.';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            localStorage.setItem('tb_user_email', email);
+            unlockApp(email);
+        }
+
+        function unlockApp(email) {
+            document.getElementById('auth-wall').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+            document.getElementById('user-display-email').textContent = email;
+            document.getElementById('account-email-heading').textContent = email;
+            switchTab('home');
+            renderSearchResults();
+            loadUserBookings();
+            renderFavorites();
+        }
+
+        function handleSignOut() {
+            localStorage.removeItem('tb_user_email');
+            window.location.reload();
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            
+            ['home', 'search', 'planner', 'map', 'bookings', 'favorites', 'account', 'legal'].forEach(t => {
+                const btn = document.getElementById(`nav-${t}`);
+                if (btn) {
+                    if (t === tabName) btn.classList.add('text-blue-600', 'font-bold');
+                    else btn.classList.remove('text-blue-600', 'font-bold');
+                }
+            });
+
+            if (tabName === 'map' && !mapInitialized) {
+                setTimeout(() => {
+                    leafletMap = L.map('leaflet-map').setView([-1.2921, 36.8219], 7);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(leafletMap);
+
+                    L.marker([-1.2921, 36.8219]).addTo(leafletMap).bindPopup('<b>Nairobi Headquarters</b><br>Founder: James Nderi');
+                    L.marker([-4.0435, 39.6682]).addTo(leafletMap).bindPopup('<b>Mombasa Coastal Hub</b><br>Resorts & Cruises');
+                    L.marker([-1.4061, 35.1990]).addTo(leafletMap).bindPopup('<b>Maasai Mara Reserve</b><br>Safari Lodges');
+                    mapInitialized = true;
+                }, 200);
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderHomeFeatured() {
+            const grid = document.getElementById('home-featured-grid');
+            grid.innerHTML = mockInventory.slice(0, 3).map(item => `
+                <div class="bg-white rounded-3xl shadow-sm overflow-hidden border p-4 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <img src="${item.image}" class="h-44 w-full object-cover rounded-2xl mb-3" alt="${item.title}">
+                        <span class="text-[10px] uppercase font-bold tracking-wider bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">${item.type}</span>
+                        <h3 class="font-bold text-slate-900 mt-2">${item.title}</h3>
+                        <p class="text-xs text-slate-500">${item.subtitle}</p>
+                    </div>
+                    <div class="pt-4 border-t flex justify-between items-center">
+                        <span class="text-blue-600 font-extrabold text-sm">KES ${item.price.toLocaleString()}</span>
+                        <button onclick="initiateCheckout('${item.title}', ${item.price})" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">Book Now</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterInventory(type) {
+            switchTab('search');
+            const query = type === 'all' ? '' : type;
+            document.getElementById('search-filter-input').value = query;
+            renderSearchResults();
+        }
+
+        function triggerMasterSearch() {
+            const query = document.getElementById('home-dest-input').value;
+            switchTab('search');
+            document.getElementById('search-filter-input').value = query;
+            renderSearchResults();
+        }
+
+        function renderSearchResults() {
+            const query = (document.getElementById('search-filter-input').value || '').toLowerCase();
+            const grid = document.getElementById('search-results-grid');
+            const filtered = mockInventory.filter(item => item.title.toLowerCase().includes(query) || item.subtitle.toLowerCase().includes(query) || item.type.toLowerCase().includes(query));
+
+            grid.innerHTML = filtered.map(item => `
+                <div class="bg-white rounded-3xl shadow-sm overflow-hidden border p-4 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="relative">
+                            <img src="${item.image}" class="h-44 w-full object-cover rounded-2xl mb-3" alt="${item.title}">
+                            <button onclick="toggleFavorite('${item.title}', ${item.price}, '${item.image}')" class="absolute top-3 right-3 bg-white/80 hover:bg-white p-2 rounded-full text-red-500 shadow"><i class="fa-solid fa-heart"></i></button>
+                        </div>
+                        <span class="text-[10px] uppercase font-bold tracking-wider bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">${item.type}</span>
+                        <h3 class="font-bold text-slate-900 mt-2">${item.title}</h3>
+                        <p class="text-xs text-slate-500">${item.subtitle}</p>
+                    </div>
+                    <div class="pt-4 border-t flex justify-between items-center">
+                        <span class="text-blue-600 font-extrabold text-sm">KES ${item.price.toLocaleString()}</span>
+                        <button onclick="initiateCheckout('${item.title}', ${item.price})" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">Book Now</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function initiateCheckout(title, price) {
+            currentCheckoutItem = { title, price };
+            document.getElementById('checkout-item-name').textContent = title;
+            document.getElementById('checkout-item-price').textContent = `KES ${price.toLocaleString()}`;
+            switchTab('booking-modal');
+        }
+
+        function selectPaymentMethod(method) {
+            activePaymentMethod = method;
+            const mpesaBtn = document.getElementById('pay-btn-mpesa');
+            const cardBtn = document.getElementById('pay-btn-card');
+            const fields = document.getElementById('payment-fields-container');
+
+            if (method === 'mpesa') {
+                mpesaBtn.className = "p-4 border-2 border-blue-600 bg-blue-50/50 rounded-2xl text-left space-y-1";
+                cardBtn.className = "p-4 border-2 border-slate-200 rounded-2xl text-left space-y-1";
+                fields.innerHTML = `<div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">M-Pesa Phone Number</label><input type="tel" id="checkout-phone" placeholder="0712345678" class="w-full p-3.5 border rounded-2xl text-sm outline-none bg-slate-50"></div>`;
+            } else {
+                cardBtn.className = "p-4 border-2 border-blue-600 bg-blue-50/50 rounded-2xl text-left space-y-1";
+                mpesaBtn.className = "p-4 border-2 border-slate-200 rounded-2xl text-left space-y-1";
+                fields.innerHTML = `<div><label class="block text-xs font-bold uppercase text-slate-500 mb-1">Card Number</label><input type="text" placeholder="4111 2222 3333 4444" class="w-full p-3.5 border rounded-2xl text-sm outline-none bg-slate-50"></div>`;
+            }
+        }
+
+        function processFinalPayment() {
+            if (!currentCheckoutItem) return;
+            const newBooking = {
+                id: 'TB-' + Math.floor(1000 + Math.random() * 9000),
+                title: currentCheckoutItem.title,
+                price: currentCheckoutItem.price,
+                date: new Date().toISOString().split('T')[0],
+                status: 'Confirmed',
+                payment: activePaymentMethod === 'mpesa' ? 'M-Pesa STK Confirmed' : 'Card Secure Paid'
+            };
+            userBookings.push(newBooking);
+            loadUserBookings();
+            alert(`Payment successful! E-Ticket #${newBooking.id} generated.`);
+            switchTab('bookings');
+        }
+
+        function loadUserBookings() {
+            const list = document.getElementById('bookings-list');
+            document.getElementById('booking-count-badge').textContent = `${userBookings.length} Active`;
+            list.innerHTML = userBookings.map((b, index) => `
+                <div class="bg-white p-6 rounded-3xl shadow-sm border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400">E-Ticket #${b.id}</span>
+                        <h3 class="font-bold text-lg text-slate-900">${b.title}</h3>
+                        <p class="text-xs text-slate-500 mt-1">Date: ${b.date} • Status: <span class="text-green-600 font-semibold">${b.status}</span> (${b.payment})</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <div class="font-extrabold text-blue-600 text-lg">KES ${b.price.toLocaleString()}</div>
+                        </div>
+                        <button onclick="cancelBooking(${index})" class="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function cancelBooking(index) {
+            if (confirm('Are you sure you want to cancel this booking?')) {
+                userBookings.splice(index, 1);
+                loadUserBookings();
+            }
+        }
+
+        function toggleFavorite(title, price, image) {
+            favoritesList.push({ title, price, image });
+            alert(`Added "${title}" to your saved favorites!`);
+            renderFavorites();
+        }
+
+        function renderFavorites() {
+            const grid = document.getElementById('favorites-grid');
+            if (favoritesList.length === 0) {
+                grid.innerHTML = `<div class="col-span-3 text-center py-12 text-slate-400 text-sm">No saved favorites yet. Browse inventory and tap the heart icon.</div>`;
+                return;
+            }
+            grid.innerHTML = favoritesList.map(item => `
+                <div class="bg-white rounded-3xl shadow-sm overflow-hidden border p-4 space-y-3">
+                    <img src="${item.image}" class="h-40 w-full object-cover rounded-2xl" alt="${item.title}">
+                    <h3 class="font-bold text-slate-900">${item.title}</h3>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-blue-600 font-extrabold">KES ${item.price.toLocaleString()}</span>
+                        <button onclick="initiateCheckout('${item.title}', ${item.price})" class="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold">Book Now</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function generateAITrip() {
+            const dest = document.getElementById('ai-destination').value.trim();
+            const days = document.getElementById('ai-days').value;
+            const budget = document.getElementById('ai-budget').value;
+
+            if (!dest) { alert('Please enter a destination or vibe.'); return; }
+
+            document.getElementById('ai-output-title').textContent = `AI Itinerary: ${dest} (${days} Days)`;
+            document.getElementById('ai-output-content').innerHTML = `
+                <div class="space-y-4">
+                    <div class="p-4 bg-purple-50 text-purple-900 rounded-2xl border border-purple-100 text-xs">
+                        <b>Configuration:</b> ${days}-Day Itinerary tailored for <b>${budget}</b> tier. Founder James Nderi recommended route.
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-2xl border space-y-1">
+                        <h5 class="font-bold text-slate-900">Day 1: Arrival & Welcome Experience</h5>
+                        <p class="text-xs text-slate-600">VIP airport pickup, transfer to luxury partner hotel in ${dest}, and evening dinner.</p>
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-2xl border space-y-1">
+                        <h5 class="font-bold text-slate-900">Day 2: Core Excursions & Guided Tour</h5>
+                        <p class="text-xs text-slate-600">Full-day guided exploration across ${dest} with expert ranger support.</p>
+                    </div>
+                    <div class="p-4 bg-slate-50 rounded-2xl border space-y-1">
+                        <h5 class="font-bold text-slate-900">Day 3: Relaxation & Departure Transfer</h5>
+                        <p class="text-xs text-slate-600">Morning leisure time, souvenirs shopping, and return airport transfer.</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('ai-result-container').classList.remove('hidden');
+        }
+    </script>
 </body>
 </html>
